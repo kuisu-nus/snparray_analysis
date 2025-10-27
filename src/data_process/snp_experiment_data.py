@@ -13,6 +13,8 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
+from tqdm import tqdm
+
 
 class ChipInfoParser:
     """Parser for chip information in SNP experiment data."""
@@ -23,8 +25,12 @@ class ChipInfoParser:
         self.chip_idx_dict = {
             "chip_num_1": "X1 number",
             "chip_num_2": "X2 number", 
-            "chip_num_4": "X3 number",
-            "chip_num_5": "X4 number"
+            "chip_num_3": "X3 number",
+            "chip_num_4": "X4 number",
+            "chip_num_5": "X5 number",
+            "chip_num_6": "X6 number",
+            "chip_num_7": "X7 number",
+            "chip_num_8": "X8 number",
         }
         self.chip_info = {}
         self.name_dict = {}
@@ -234,10 +240,21 @@ class TextFileParser:
         if not data_path_obj.exists():
             raise FileNotFoundError(f"Data path {data_path} does not exist.")
         
-        with open(data_path_obj, 'r', encoding='utf-8') as file:
-            lines = file.readlines()
+        if data_path_obj.suffix.lower() == ".xlsx":
+            df_list = pd.read_excel(data_path_obj, header=None, sheet_name=None)
+            df_csv = pd.concat(df_list.values(), ignore_index=True).iloc[:, :14]
+
+            data_path_obj_csv = data_path_obj.with_suffix('.csv')
+            df_csv.to_csv(data_path_obj_csv, index=False, header=False)
+            logging.info(f"Converted Excel to CSV at {data_path_obj_csv}")
+
+            return self.load_data(data_path_obj_csv)
+
+        # with open(data_path_obj, 'r', encoding='utf-8') as file:
+        #     lines = file.readlines()
+        df_data = pd.read_csv(data_path_obj, header=None, dtype=str, keep_default_na=False)
         
-        return lines
+        return df_data
 
     def parse_experiment_time(self, line_data: List[str], experiment_dict: Dict) -> None:
         """
@@ -251,7 +268,7 @@ class TextFileParser:
         experiment_dict[time_key.strip()] = time_value.strip().replace(" ", "")
         
         experimenter_key, experimenter_value = line_data[7].split("：")
-        experiment_dict[experimenter_key.strip()] = experimenter_value.strip()
+        experiment_dict[experimenter_key.strip()] = experimenter_value.split("  ")[0].strip()
 
     def parse_comment(self, line_data: List[str], experiment_dict: Dict) -> None:
         """
@@ -261,9 +278,11 @@ class TextFileParser:
             line_data: Split line data
             experiment_dict: Dictionary to store experiment data
         """
-        comment_key = line_data[0][:2].strip()
-        comment_value = line_data[0][3:].strip()
-        experiment_dict[comment_key] = comment_value
+        comment_value = line_data[0].replace("备注：", "").strip()
+        if "备注" in experiment_dict.keys():
+            experiment_dict["备注"] += comment_value
+        else:
+            experiment_dict["备注"] = comment_value
 
     def parse_chip_numbers(self, line_data: List[str], experiment_dict: Dict, 
                           chip_line: int) -> None:
@@ -275,8 +294,7 @@ class TextFileParser:
             experiment_dict: Dictionary to store experiment data
             chip_line: Current chip line number
         """
-        if chip_line in [1, 2, 4, 5]:  # chip_num_1 to chip_num_5
-            experiment_dict[f"chip_num_{chip_line}"] = line_data
+        experiment_dict[f"chip_num_{chip_line}"] = line_data
 
     def parse_chip_indices(self, line_data: List[str], experiment_dict: Dict) -> None:
         """
@@ -290,13 +308,14 @@ class TextFileParser:
         X1_key, X1_value = line_data[1].split("：")
         experiment_dict[X1_key.strip()] = X1_value.strip().replace(" ", "")
         
-        X2_key, X2_value = line_data[7].split("：")
-        experiment_dict[X2_key.strip()] = X2_value.strip()
+        if "：" in line_data[7]:
+            X2_key, X2_value = line_data[7].split("：")
+            experiment_dict[X2_key.strip()] = X2_value.strip()
         
         # Parse X3 and X4 (assuming similar structure in next line)
         # This would need to be handled in the calling function
 
-    def parse_txt(self, lines: List[str]) -> None:
+    def parse_txt(self, df_data: pd.DataFrame) -> None:
         """
         Parse text data and extract experiment information.
         
@@ -305,15 +324,19 @@ class TextFileParser:
         """
         experiment_dict = {}
         chip_line = -1
+        chip_idx = 0
         
-        for line in lines:
-            line_data = [i.strip() for i in line.strip().split(",")]
-            
+        for line_data in tqdm(df_data.values.tolist(), desc="Parsing SNP Experiment Data"):
+            line_data = [i.strip() for i in line_data]
+            line = ",".join([str(i) for i in line_data])
+
             if "实验时间" in line:
                 chip_line = 0
+                chip_idx = 0
                 if experiment_dict:
                     # Process completed experiment
                     parser_experiment = self.chip_parser.parse(experiment_dict)
+                    assert len(parser_experiment) == len([i for i in experiment_dict.keys() if "chip_num" in i]), "No experiments parsed."
                     self.experiments.extend(parser_experiment)
                     experiment_dict = {}
                 
@@ -324,17 +347,33 @@ class TextFileParser:
                 self.parse_comment(line_data, experiment_dict)
                 chip_line += 1
             
-            elif chip_line in [0, 3]:
+            elif chip_line in [0]:
                 chip_line += 1
                 continue
+            elif "实验记录表" in line:
+                continue
             
-            elif 1 <= chip_line <= 5:
-                self.parse_chip_numbers(line_data, experiment_dict, chip_line)
+
+            elif "R01C01" == line_data[1]:
+                experiment_dict["chip_sub_idx"] = line_data
+            
+            elif line_data[0] in ["Cyto-12", "Karyomap", "Karyomap (预实验)", "Karyomap(预实验)"]:
+                chip_idx += 1
+                self.parse_chip_numbers(line_data, experiment_dict, chip_idx)
                 chip_line += 1
             
-            elif chip_line in [6,7]:
+            elif "number：" in line_data[1]:
                 self.parse_chip_indices(line_data, experiment_dict)
                 chip_line += 1
+            
+            else:
+                comment_txt = ". ".join([i for i in line_data if i])
+                # experiment_dict["comment"] = comment_txt
+                if comment_txt and experiment_dict.get("X1 number", False):
+                    if "备注" not in experiment_dict:
+                        experiment_dict["备注"] = comment_txt
+                    else:
+                        experiment_dict["备注"] += comment_txt
         
         # Process the last experiment
         if experiment_dict:
@@ -374,14 +413,14 @@ class ParseSNPExperimentData:
         """
         return self.text_parser.load_data(data_path)
 
-    def parse_txt(self, lines: List[str]) -> None:
+    def parse_txt(self, df_data: pd.DataFrame) -> None:
         """
         Parse text data and extract experiment information.
         
         Args:
             lines: List of lines from the input file
         """
-        self.text_parser.parse_txt(lines)
+        self.text_parser.parse_txt(df_data)
         self.experiments = self.text_parser.experiments
 
     def save_json(self, output_dir: str, file_name:str) -> None:
@@ -450,7 +489,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         '--data_path', 
         type=str, 
-        default=r"D:\03.projects\AI.PGT\snparray_analysis\data\experiment_snparray.csv",
+        default=r"D:\03.projects\AI.PGT\snparray_analysis\data\5.芯片实验记录表2020.12.29（勿删）.csv",
         required=False, 
         help='Path to the SNP experiment data text file.'
     )
@@ -465,7 +504,7 @@ def parse_arguments() -> argparse.Namespace:
         '--file_name', 
         type=str, 
         required=False, 
-        default=r"experiment_snparray",
+        default=r"5.芯片实验记录表2020.12.29（勿删）",
         help='file name for the output files (without extension).'
     )
     return parser.parse_args()
@@ -480,8 +519,8 @@ def main() -> None:
     
     try:
         parser_snp = ParseSNPExperimentData(data_path=args.data_path)
-        lines = parser_snp.load_data(data_path=args.data_path)
-        parser_snp.parse_txt(lines)
+        df_data = parser_snp.load_data(data_path=args.data_path)
+        parser_snp.parse_txt(df_data)
         parser_snp.save_json(output_dir=args.output_dir, file_name=args.file_name)
         parser_snp.save_csv(output_dir=args.output_dir, file_name=args.file_name+"_persons")
         logging.info("SNP experiment data parsing completed successfully.")
