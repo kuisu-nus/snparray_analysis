@@ -8,6 +8,7 @@ This script uses pandas for efficient CSV reading and SQLAlchemy for robust
 database writing, with special handling for long text fields and UTF-8 encoding.
 """
 
+import argparse
 import logging
 import sys
 from typing import Optional, Dict
@@ -16,6 +17,14 @@ import pandas as pd
 from sqlalchemy import create_engine, engine, exc
 from sqlalchemy.types import TEXT
 
+
+
+def setup_logging() -> None:
+    """Set up logging configuration."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 # --- Configuration ---
 
 # TODO: For production, load these from environment variables or a secure
@@ -25,10 +34,27 @@ DB_CONFIG = {
     "port": 3306,              # Your MySQL server port
     "user": "root",   # Your MySQL username
     "password": "sukui1016", # Your MySQL password
-    "database": "student_management"  # The database to write to
+    "database": "ivf_data"  # The database to write to
 }
 
 # CSV file path and the target table name in MySQL
+def parse_arguments() -> argparse.Namespace:
+    """
+    Parse command line arguments.
+    
+    Returns:
+        Parsed arguments namespace
+    """
+    parser = argparse.ArgumentParser(description='add clinical data to mysql')
+    parser.add_argument(
+        '--csv_path', 
+        type=str, 
+        default=r"D:\03.projects\AI.PGT\snparray_analysis\data\5.芯片实验记录表2020.12.29.xlsx",
+        required=False, 
+        help='Path to the SNP experiment data text file.'
+    )
+
+
 CSV_FILE_PATH = r"D:\03.projects\AI.PGT\snparray_analysis\data\clinical_data_pgt.csv"
 TABLE_NAME = "clinical_data"
 
@@ -104,7 +130,7 @@ class MySQLDataImporter:
         #     logger.error(f"An unexpected error occurred while creating DB engine: {e}")
         #     return None
 
-    def read_csv_to_dataframe(self, file_path: str) -> Optional[pd.DataFrame]:
+    def read_csv_to_dataframe(self, file_path: str, header:int=0) -> Optional[pd.DataFrame]:
         """
         Reads the specified CSV file into a pandas DataFrame.
 
@@ -118,7 +144,7 @@ class MySQLDataImporter:
             Optional[pd.DataFrame]: A DataFrame if successful, else None.
         """
         try:
-            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            df = pd.read_csv(file_path, encoding='utf-8-sig', header=header)
             logger.info(f"Successfully loaded {df.shape[0]} rows and {df.shape[1]} columns from '{file_path}'.")
             
             # Professional practice: Clean column names
@@ -192,7 +218,7 @@ class MySQLDataImporter:
         except Exception as e:
             logger.error(f"An unexpected error occurred during database write: {e}")
 
-    def run(self, csv_path: str, table_name: str, if_exists: str = 'replace'):
+    def run(self, csv_path: str, table_name: str, if_exists: str = 'replace', header:int=0):
         """
         Executes the full import process: read CSV, then write to DB.
 
@@ -204,7 +230,7 @@ class MySQLDataImporter:
         logger.info(f"Starting import process for '{csv_path}'...")
         
         # Step 1: Read CSV
-        df = self.read_csv_to_dataframe(csv_path)
+        df = self.read_csv_to_dataframe(csv_path, header)
         
         # Step 2: Write to DB, only if reading was successful and engine is valid
         if df is not None and self.engine is not None:
@@ -217,18 +243,62 @@ class MySQLDataImporter:
         logger.info("Import process finished.")
 
 
+def parse_arguments() -> argparse.Namespace:
+    """
+    Parse command line arguments.
+    
+    Returns:
+        Parsed arguments namespace
+
+        python script.py --csv_path "/path/to/data.csv" --table_name "clinical_data" --if_exists replace
+    """
+    parser = argparse.ArgumentParser(description='Import clinical data to MySQL database')
+    
+    parser.add_argument(
+        '--csv_path', 
+        type=str,
+        required=True,
+        help='Path to the clinical data CSV file'
+    )
+    parser.add_argument(
+        '--header', 
+        type=int,
+        required=True,
+        help='Path to the clinical data CSV file'
+    )
+    
+    parser.add_argument(
+        '--table_name', 
+        type=str,
+        default='clinical_data',
+        help='Target table name in MySQL (default: clinical_data)'
+    )
+    
+    parser.add_argument(
+        '--if_exists', 
+        type=str,
+        choices=['replace', 'append'],
+        default='replace',
+        help='Behavior if table exists: replace or append (default: replace)'
+    )
+
+    logging.info(f"Parsed arguments: {parser.parse_args()}")
+    
+    return parser.parse_args()
+
 # --- Main Execution ---
 
 if __name__ == "__main__":
-    """
-    This block runs only when the script is executed directly
-    (not when imported as a module).
-    """
-    
-    # 1. Create an instance of the importer
-    importer = MySQLDataImporter(DB_CONFIG)
-    
-    # 2. Run the import process
-    # We use 'replace' to drop the table if it exists and create a new one.
-    # Change to 'append' if you want to add data to an existing table.
-    importer.run(CSV_FILE_PATH, TABLE_NAME, if_exists='replace')
+    setup_logging()
+    args = parse_arguments()
+
+    try:
+        # Create importer instance and run import process
+        importer = MySQLDataImporter(DB_CONFIG)
+        importer.run(args.csv_path, args.table_name, if_exists=args.if_exists, header=args.header)
+        
+        logging.info(f"Successfully imported data from {args.csv_path} to table {args.table_name}")
+        
+    except Exception as e:
+        logging.info(f"Error during import: {str(e)}", file=sys.stderr)
+        sys.exit(1)
