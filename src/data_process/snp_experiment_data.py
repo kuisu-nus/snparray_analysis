@@ -9,6 +9,7 @@ import argparse
 import json
 import logging
 import re
+import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -383,18 +384,49 @@ class ParseSNPExperimentData:
         self.text_parser.parse_txt(lines)
         self.experiments = self.text_parser.experiments
 
-    def save_json(self, output_path: str) -> None:
+    def save_json(self, output_dir: str, file_name:str) -> None:
         """
         Save parsed experiments to JSON file.
         
         Args:
             output_path: Path where JSON file will be saved
         """
+        output_path = f"{output_dir}/{file_name}.json"
         output_path_obj = Path(output_path)
         output_path_obj.parent.mkdir(parents=True, exist_ok=True)
         
         with open(output_path_obj, 'w', encoding='utf-8') as file:
             json.dump(self.experiments, file, ensure_ascii=False, indent=4)
+        
+        logging.info(f"Saved experiments to {output_path}")
+    
+    def save_csv(self, output_dir: str, file_name:str) -> None:
+        """
+        Save parsed experiments to CSV file.
+        
+        Args:
+            output_path: Path where CSV file will be saved
+        """
+        output_path = f"{output_dir}/{file_name}.csv"
+        output_path_obj = Path(output_path)
+        output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+        chip_sub_idx = ["R01C01","R02C01","R03C01","R04C01","R05C01","R06C01","R01C02","R02C02","R03C02","R04C02","R05C02","R06C02"]
+        
+        results = []
+        for experiment in self.experiments:
+            result = {}
+            info_result = {k: v for k, v in experiment.items() if k not in ["names", "name_numbers", "sample", "备注"]}
+            for idx,sample_i, name, name_number, in zip(chip_sub_idx, experiment["sample"], experiment["names"], experiment["name_numbers"]):
+                result.update(info_result)
+                result["name"] = name
+                result["name_number"] = name_number
+                result["chip_sub_idx"] = idx
+                result["sample"] = sample_i
+                results.append(result.copy())
+        
+        df = pd.DataFrame(results)
+        df.to_csv(output_path_obj, index=False, encoding='utf-8')
         
         logging.info(f"Saved experiments to {output_path}")
 
@@ -423,11 +455,18 @@ def parse_arguments() -> argparse.Namespace:
         help='Path to the SNP experiment data text file.'
     )
     parser.add_argument(
-        '--output_path', 
+        '--output_dir', 
         type=str, 
         required=False, 
-        default=r"D:\03.projects\AI.PGT\snparray_analysis\data\experiment_snparray.json",
+        default=r"D:\03.projects\AI.PGT\snparray_analysis\data",
         help='Path to save the parsed JSON file.'
+    )
+    parser.add_argument(
+        '--file_name', 
+        type=str, 
+        required=False, 
+        default=r"experiment_snparray",
+        help='file name for the output files (without extension).'
     )
     return parser.parse_args()
 
@@ -443,7 +482,8 @@ def main() -> None:
         parser_snp = ParseSNPExperimentData(data_path=args.data_path)
         lines = parser_snp.load_data(data_path=args.data_path)
         parser_snp.parse_txt(lines)
-        parser_snp.save_json(output_path=args.output_path)
+        parser_snp.save_json(output_dir=args.output_dir, file_name=args.file_name)
+        parser_snp.save_csv(output_dir=args.output_dir, file_name=args.file_name+"_persons")
         logging.info("SNP experiment data parsing completed successfully.")
     except Exception as e:
         logging.error(f"Error processing SNP experiment data: {e}")
