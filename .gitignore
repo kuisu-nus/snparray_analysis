@@ -209,3 +209,6 @@ __marimo__/
 
 # Local snparray_analysis ignore rules
 work_dir/
+*.csv
+*.xlsx
+*.json

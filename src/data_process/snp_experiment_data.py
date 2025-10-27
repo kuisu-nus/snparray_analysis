@@ -193,8 +193,8 @@ class ChipInfoParser:
         
         # Process names and numbers
         names, name_numbers = self.process_chip_data(chip_info["sample"], name_dict)
-        chip_info["names"] = names
-        chip_info["name_numbers"] = name_numbers
+        chip_info["女方姓名"] = names
+        chip_info["PGD/PGS编号"] = name_numbers
         
         # Get chip index
         chip_idx_key = self.chip_idx_dict[key]
@@ -455,11 +455,11 @@ class ParseSNPExperimentData:
         results = []
         for experiment in self.experiments:
             result = {}
-            info_result = {k: v for k, v in experiment.items() if k not in ["names", "name_numbers", "sample", "备注"]}
-            for idx,sample_i, name, name_number, in zip(chip_sub_idx, experiment["sample"], experiment["names"], experiment["name_numbers"]):
+            info_result = {k: v for k, v in experiment.items() if k not in ["女方姓名", "PGD/PGS编号", "sample", "备注"]}
+            for idx,sample_i, name, name_number, in zip(chip_sub_idx, experiment["sample"], experiment["女方姓名"], experiment["PGD/PGS编号"]):
                 result.update(info_result)
-                result["name"] = name
-                result["name_number"] = name_number
+                result["女方姓名"] = name
+                result["PGD/PGS编号"] = name_number
                 result["chip_sub_idx"] = idx
                 result["sample"] = sample_i
                 results.append(result.copy())
@@ -489,7 +489,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         '--data_path', 
         type=str, 
-        default=r"D:\03.projects\AI.PGT\snparray_analysis\data\5.芯片实验记录表2020.12.29（勿删）.csv",
+        default=r"D:\03.projects\AI.PGT\snparray_analysis\data\5.芯片实验记录表2020.12.29.xlsx",
         required=False, 
         help='Path to the SNP experiment data text file.'
     )
@@ -504,7 +504,7 @@ def parse_arguments() -> argparse.Namespace:
         '--file_name', 
         type=str, 
         required=False, 
-        default=r"5.芯片实验记录表2020.12.29（勿删）",
+        default=r"5.芯片实验记录表2020.12.29",
         help='file name for the output files (without extension).'
     )
     return parser.parse_args()
