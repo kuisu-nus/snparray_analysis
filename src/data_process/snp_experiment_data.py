@@ -6,6 +6,7 @@ and convert it to structured JSON format.
 """
 
 import argparse
+import glob
 import json
 import logging
 import re
@@ -327,7 +328,7 @@ class TextFileParser:
         chip_idx = 0
         
         for line_data in tqdm(df_data.values.tolist(), desc="Parsing SNP Experiment Data"):
-            line_data = [i.strip() for i in line_data]
+            line_data = [i.strip() if isinstance(i, str) else i for i in line_data]
             line = ",".join([str(i) for i in line_data])
 
             if "实验时间" in line:
@@ -367,7 +368,11 @@ class TextFileParser:
                 chip_line += 1
             
             else:
-                comment_txt = ". ".join([i for i in line_data if i])
+                try:
+                    comment_txt = ". ".join([str(i) for i in line_data if str(i).strip()])
+                except Exception as e:
+                    logging.error(f"Error parsing line: {line_data}")
+                    raise e
                 # experiment_dict["comment"] = comment_txt
                 if comment_txt and experiment_dict.get("X1 number", False):
                     if "备注" not in experiment_dict:
@@ -393,15 +398,15 @@ class ParseSNPExperimentData:
         Args:
             data_path: Path to the data file
         """
-        self.data_path = Path(data_path)
-        if not self.data_path.exists():
-            raise FileNotFoundError(f"Data path {data_path} does not exist.")
+        self.data_path = data_path
+        # if not self.data_path.exists():
+        #     raise FileNotFoundError(f"Data path {data_path} does not exist.")
         
         self.experiments = []
         self.chip_parser = ChipInfoParser()
         self.text_parser = TextFileParser(self.chip_parser)
 
-    def load_data(self, data_path: str) -> List[str]:
+    def load_data(self, data_path: str, header: int = 0) -> List[str]:
         """
         Load data from the specified path.
         
@@ -411,7 +416,34 @@ class ParseSNPExperimentData:
         Returns:
             List of lines from the file
         """
-        return self.text_parser.load_data(data_path)
+        # load multi file
+        file_paths = glob.glob(data_path)
+        if not file_paths:
+            raise FileNotFoundError(f"No files found matching pattern: {data_path}")
+        
+        logging.info(f"Found {len(file_paths)} files from {data_path}")
+        for file_path in file_paths:
+            logging.info(f"  - {file_path}")
+        # Read and concatenate all CSV files
+        dataframes = []
+        for file_path in file_paths:
+            try:
+                df = self.text_parser.load_data(file_path)
+                dataframes.append(df)
+                logging.info(f"Successfully read {file_path} with {len(df)} rows")
+            except Exception as e:
+                logging.info(f"Error reading {file_path}: {e}")
+                continue
+        
+        if not dataframes:
+            raise ValueError("No CSV files could be read successfully")
+        
+        # Concatenate all DataFrames
+        merged_df = pd.concat(dataframes, axis=0, ignore_index=True)
+        logging.info(f"\nMerged DataFrame shape: {merged_df.shape}")
+        logging.info(f"Total rows: {len(merged_df)}")
+        
+        return merged_df
 
     def parse_txt(self, df_data: pd.DataFrame) -> None:
         """
