@@ -641,5 +641,5 @@ if __name__ == "__main__":
     
     # Print results
     print("\nPipeline Execution Results:")
-    for key, value in results.items():
-        print(f"{key}: {value}")
+    # for key, value in results.items():
+    #     print(f"{key}: {value}")
