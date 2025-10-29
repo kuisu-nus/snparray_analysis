@@ -1,162 +1,155 @@
-# snparray_analysis
-用于处理Genome Studio的SNP array数据，并将其转为VCF数据
 
+# SNP Array Analysis
 
-### 匹配Experiment的异常情况记录
-Cyto-12,R-温善荣,T11,T12,T13,T14,T15,T16,李笑玲B  L1,L2,L3        （未完）,刘美L4（重上）,RB,
+一个用于处理和分析SNP芯片数据的Python工具包，支持数据导入、处理、合并和存储等功能。
 
-```markdown
-Cyto-12,F-潘毅,陈晓燕H   C1,C2,C3,詹杜鹃Z1,Z2,Z3,Z4,Z5,Z6,Z7,RB,
-Cyto-12,M-陈黄花,潘燕婷P1,P2,P3,P4,李惠娴L1,L2,L3,L4,L5,L6,RB,
-Cyto-12,R-潘丽婷,L7,L8,L9,L10,L11,L12,王生兰    R1,林木秀   R1,质控1,质控2,RB,
-,R01C01,R02C01,R03C01,R04C01,R05C01,R06C01,R01C02,R02C02,R03C02,R04C02,R05C02,R06C02,
-Cyto-12,M-楼英玲,曾佩环Z1,Z2,Z3,Z4,江丽红B   J1,J2,J3,J4,J5,J6,RB,
-Karyomap,F-叶久思,M-周玲娟(预实验),R-叶檬,R-董依依,郑乐美Z1,Z2,Z3,Z4,Z5,Z6,Z7,Z8,
-Karyomap,Z9,Z10,Z11,Z12,Z13,Z14,Z15,Z16,Z17,Z18,Z19,Z20,
-,X1 number：203218670040                                ,,,,,,X2 number：203218670041,,,,,,
-,X3 number：203359230010                               ,,,,,,X4 number：203359230011,,,,,,
-,X5 number：203392440048                               ,,,,,,X6 number：203392440054,,,,,,
+## 功能特性
+
+- SNP芯片数据处理（PLINK格式）
+- 实验数据解析和转换
+- 临床数据与SNP数据合并
+- MySQL数据库集成
+- 文件同步和下载
+
+## 项目结构
+
 ```
-这里一个实验记录了6张芯片，需要修改策略
-
-```markdown
-,,,,,,,,,,,,,
-,实验时间： 2019  年 10 月 29  日,,,,,,数据分析：  潘家富                                                    打印第   页,,,,,,
-Cyto-12,F-何卓良,卢洁红L1,L5,"陈晓梅C
-C3","林琳H
-L1",L2,何雪娇H1,H2,H3,H4,H7,RB,
-Cyto-12,M-司徒凤仪,蔡晓欣C1,司徒凤仪S1,S2,S3,S4,S5,S6,S7,S8,S9,RB,
-,R01C01,R02C01,R03C01,R04C01,R05C01,R06C01,R01C02,R02C02,R03C02,R04C02,R05C02,R06C02,
-Cyto-12,R-梁凤娥,陈倩霞C1,C2,C3,C4,C5,C6,C7,C8,C9,杨丽G1,RB,
-Karyomap,F-李振亚,M-司秋锦(预实验),R-司秋锦儿子,邹承娇Z2,Z3,Z4,Z5,Z6,Z7,Z8,Z9,Z10,
-,X1 number：203880360095                                ,,,,,,X2 number：203880360099,,,,,,
-,X3 number：203880360128                               ,,,,,,X4 number：203717980048,,,,,,
-备注： 1.加粗字体为二次活检样本。,,,,,,,,,,,,,
-备注：红色字体表示需要区分正常和携带；Cyto-12芯片中R01C01为阳性对照外周血，如无特殊备注则为同一家系外周血：F表示父亲，M-母亲，R-先证者,,,,,,,,,,,,,
-           标绿背景的病人表示按新收费标准,,,,,,,,,,,,,
-,,,,,,,,,,,,,
-````
-这里，每个一行中有多个换行符
-
-
-```markdown
-芯片实验记录表,,,,,,,,,,,,,
-,实验时间：2020  年  月   日,,,,,,数据分析：                                                         打印第   页,,,,,,
-Cyto-12,F-,,,,,,,,,,,RB,
-Cyto-12,M- ,,,,,,,,,,,RB,
-,R01C01,R02C01,R03C01,R04C01,R05C01,R06C01,R01C02,R02C02,R03C02,R04C02,R05C02,R06C02,
-Cyto-12,R-,,,,,,,,,,,RB,
-Karyomap,F-,M-(预实验),R-,,,,,,,,,,
-,X1 number：                                ,,,,,,X2 number：,,,,,,
-,X3 number：                               ,,,,,,X4 number：,,,,,,
-备注：红色字体表示需要区分正常和携带；Cyto-12芯片中R01C01为阳性对照外周血，如无特殊备注则为同一家系外周血：F表示父亲，M-母亲，R-先证者,,,,,,,,,,,,,
-           标绿背景的病人表示按新收费标准,,,,,,,,,,,,,
-```
-这个数据中没有任何信息
-
-```markdown
-025-10-27 16:10:40,662 - WARNING - Unable to parse name:
-2025-10-27 16:10:40,662 - WARNING - Unable to parse name:
-2025-10-27 16:10:40,662 - WARNING - Unable to parse name:
-2025-10-27 16:10:40,663 - WARNING - Unable to parse name: 刘秋连B L6？
-2025-10-27 16:10:40,663 - WARNING - Unable to parse name: 426
-2025-10-27 16:10:40,663 - WARNING - Unable to parse name: 106NC
-2025-10-27 16:10:40,664 - WARNING - Unable to parse name: 12t
-2025-10-27 16:10:40,666 - WARNING - Unable to parse name: 聂红群（羊水）
-2025-10-27 16:10:40,667 - WARNING - Unable to parse name: W21
-2025-10-27 16:10:40,667 - WARNING - Unable to parse name: 4
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 韦玉美V2 1+
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 韦玉美V2 4+
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 韦玉美V2 10+
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 容燕玲V2 1+
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 蔡丽琳V2  1
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 钟丽娟V2  2
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 韦玉美V3 13+
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 韦玉美V3 14+
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 韦玉美V3 17+
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 容燕玲V3  2+
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 蔡丽琳V3  3
-2025-10-27 16:10:40,669 - WARNING - Unable to parse name: 蔡丽琳V3  4
-2025-10-27 16:10:40,670 - WARNING - Unable to parse name: 廖永丽   (1、1)
-2025-10-27 16:10:40,671 - WARNING - Unable to parse name: 廖永丽 (1、2)
-2025-10-27 16:10:40,671 - WARNING - Unable to parse name: 廖永丽 (1、3)
-2025-10-27 16:10:40,671 - WARNING - Unable to parse name: 廖永丽 (1、4)
-2025-10-27 16:10:40,671 - WARNING - Unable to parse name: 廖永丽 (1、5)
-2025-10-27 16:10:40,671 - WARNING - Unable to parse name: 廖永丽B
-2025-10-27 16:10:40,671 - WARNING - Unable to parse name: 廖兰秀   (2、1)
-2025-10-27 16:10:40,672 - WARNING - Unable to parse name: 廖兰秀   (2、2)
-2025-10-27 16:10:40,672 - WARNING - Unable to parse name: 廖兰秀  (2、3)
-2025-10-27 16:10:40,672 - WARNING - Unable to parse name: 廖兰秀    (2、4)
-2025-10-27 16:10:40,672 - WARNING - Unable to parse name: 廖兰秀    (2、5)
-2025-10-27 16:10:40,672 - WARNING - Unable to parse name: 廖兰秀B
-2025-10-27 16:10:40,672 - WARNING - Unable to parse name: 卢楚韵   (3、1)
-2025-10-27 16:10:40,672 - WARNING - Unable to parse name: 卢楚韵   (3、2)
-2025-10-27 16:10:40,672 - WARNING - Unable to parse name: 卢楚韵   (3、3)
-2025-10-27 16:10:40,673 - WARNING - Unable to parse name: 卢楚韵   (3、4)
-2025-10-27 16:10:40,673 - WARNING - Unable to parse name: 卢楚韵   (3、5)
-2025-10-27 16:10:40,673 - WARNING - Unable to parse name: 卢楚韵B (脐血)
-2025-10-27 16:10:40,673 - WARNING - Unable to parse name: 张玲P   (4.1)
-2025-10-27 16:10:40,673 - WARNING - Unable to parse name: 张玲P   (4.2)
-2025-10-27 16:10:40,673 - WARNING - Unable to parse name: 张玲P   (4.3)
-2025-10-27 16:10:40,673 - WARNING - Unable to parse name: 张玲P   (4.4)
-2025-10-27 16:10:40,673 - WARNING - Unable to parse name: 张玲P   (4.5)
-2025-10-27 16:10:40,674 - WARNING - Unable to parse name: 张玲P    (脐血)
-2025-10-27 16:10:40,674 - WARNING - Unable to parse name: 欧阳绮雯(羊水)
-2025-10-27 16:10:40,674 - WARNING - Unable to parse name: 康为世纪 (MDA7+)
-2025-10-27 16:10:40,674 - WARNING - Unable to parse name: 8+
-2025-10-27 16:10:40,674 - WARNING - Unable to parse name: 9+
-2025-10-27 16:10:40,674 - WARNING - Unable to parse name: 10+
-2025-10-27 16:10:40,674 - WARNING - Unable to parse name: Picoplex Gold    2+
-2025-10-27 16:10:40,674 - WARNING - Unable to parse name: 3+
-2025-10-27 16:10:40,674 - WARNING - Unable to parse name: 5+
-2025-10-27 16:10:40,676 - WARNING - Unable to parse name: 梁媛   (脐血)
-2025-10-27 16:10:40,677 - WARNING - Unable to parse name: 康为世纪1
-2025-10-27 16:10:40,677 - WARNING - Unable to parse name: 康为世纪2
-2025-10-27 16:10:40,677 - WARNING - Unable to parse name: 康为世纪3
-2025-10-27 16:10:40,677 - WARNING - Unable to parse name: 康为世纪4
-2025-10-27 16:10:40,678 - WARNING - Unable to parse name: 6.1     欧阳绮文
-2025-10-27 16:10:40,678 - WARNING - Unable to parse name: 6.2           欧阳绮文
-2025-10-27 16:10:40,678 - WARNING - Unable to parse name: 6.3           欧阳绮文
-2025-10-27 16:10:40,678 - WARNING - Unable to parse name: 6.4           欧阳绮文
-2025-10-27 16:10:40,678 - WARNING - Unable to parse name: 6.5           欧阳绮文
-2025-10-27 16:10:40,679 - WARNING - Unable to parse name: 6              欧阳绮文
-2025-10-27 16:10:40,679 - WARNING - Unable to parse name: 6              张浩峰
-2025-10-27 16:10:40,679 - WARNING - Unable to parse name: 6    欧阳绮文B
-2025-10-27 16:10:40,679 - WARNING - Unable to parse name: 7.1邱素芳
-2025-10-27 16:10:40,679 - WARNING - Unable to parse name: 7.2邱素芳
-2025-10-27 16:10:40,679 - WARNING - Unable to parse name: 7.3邱素芳
-2025-10-27 16:10:40,679 - WARNING - Unable to parse name: 7.4邱素芳
-2025-10-27 16:10:40,680 - WARNING - Unable to parse name: 7.5邱素芳
-2025-10-27 16:10:40,680 - WARNING - Unable to parse name: 邱素芳B (脐血)
-2025-10-27 16:10:40,680 - WARNING - Unable to parse name: 谢志梅ＢX1
-2025-10-27 16:10:40,682 - WARNING - Unable to parse name: 李松 (P1D)
-2025-10-27 16:10:40,682 - WARNING - Unable to parse name: 李松  (Q2D)
-2025-10-27 16:10:40,682 - WARNING - Unable to parse name: 李松  (Q3D)
-2025-10-27 16:10:40,682 - WARNING - Unable to parse name: 刘晓丹  胎盘1
-2025-10-27 16:10:40,683 - WARNING - Unable to parse name: 刘晓丹  胎盘2
-2025-10-27 16:10:40,683 - WARNING - Unable to parse name: 刘晓丹  胎盘3
-2025-10-27 16:10:40,683 - WARNING - Unable to parse name: 刘晓丹  胎盘4
-2025-10-27 16:10:40,683 - WARNING - Unable to parse name: 刘晓丹  胎盘5
-2025-10-27 16:10:40,684 - WARNING - Unable to parse name: 9
-2025-10-27 16:10:40,687 - WARNING - Unable to parse name: 康为世纪6
-2025-10-27 16:10:40,687 - WARNING - Unable to parse name: 7
-2025-10-27 16:10:40,687 - WARNING - Unable to parse name: 8
-2025-10-27 16:10:40,688 - WARNING - Unable to parse name: 黄飘飘  胎盘1
-2025-10-27 16:10:40,688 - WARNING - Unable to parse name: 黄飘飘  胎盘2
-2025-10-27 16:10:40,688 - WARNING - Unable to parse name: 黄飘飘  胎盘3
-2025-10-27 16:10:40,688 - WARNING - Unable to parse name: 黄飘飘  胎盘4
-2025-10-27 16:10:40,688 - WARNING - Unable to parse name: 黄飘飘  胎盘5
-2025-10-27 16:10:40,688 - WARNING - Unable to parse name: 吴媚媚  胎盘1
-2025-10-27 16:10:40,688 - WARNING - Unable to parse name: 吴媚媚  胎盘2
-2025-10-27 16:10:40,689 - WARNING - Unable to parse name: 吴媚媚  胎盘3
-2025-10-27 16:10:40,689 - WARNING - Unable to parse name: 吴媚媚  胎盘4
-2025-10-27 16:10:40,689 - WARNING - Unable to parse name: 吴媚媚  胎盘5
+snparray_analysis/
+├── data/                    # 数据目录
+├── docs/                    # 文档目录
+├── scripts/                 # 脚本目录
+├── src/                     # 源代码目录
+│   ├── data_process/        # 数据处理模块
+│   ├── sql_data/           # SQL数据模块
+│   └── notebook/           # Jupyter notebooks
+└── work_dir/               # 工作目录
 ```
 
-异常标签的数据
+## 核心模块
 
+### 1. 数据处理模块 (src/data_process/)
 
-## 数据清洗
+- `snparray_data.py`: SNP芯片数据处理
+  - 支持PLINK格式数据加载
+  - 数据格式转换和导出
 
-- 发现同一个病人，可能存在多个周期。
-- 所有要多个标签进行约束: name-PGD编号-年份-遗传材料接收者
+- `snp_experiment_data.py`: 实验数据解析
+  - 芯片实验记录解析
+  - 支持多种数据格式输出
+
+- `merger_data.py`: 数据合并
+  - 临床数据与SNP数据合并
+  - 支持自定义合并策略
+
+- `snparray_data_handler.py`: 数据处理器
+  - MySQL数据库连接
+  - 文件下载和同步
+  - 数据处理流水线
+
+- `rsync_downloader.py`: 文件同步工具
+  - 支持rsync协议
+  - 批量文件下载
+
+### 2. SQL数据模块 (src/sql_data/)
+
+- `clinical_sql.py`: MySQL数据导入工具
+  - CSV数据导入
+  - 支持UTF-8编码
+  - 数据库表管理
+
+- `pymysql.py`: MySQL操作封装
+  - 数据库连接管理
+  - CRUD操作封装
+  - 事务处理
+
+## 使用说明
+
+### 1. 环境要求
+
+- Python 3.6+
+- MySQL 5.7+
+- 必要的Python包（见requirements.txt）
+
+### 2. 数据处理流程
+
+1. SNP芯片数据处理
+```bash
+python src/data_process/snparray_data.py \
+    --data_root "path/to/data" \
+    --file_name "filename" \
+    --output_root "path/to/output"
+```
+
+2. 实验数据解析
+```bash
+python src/data_process/snp_experiment_data.py \
+    --data_path "path/to/experiment_data" \
+    --file_name "output_name" \
+    --output_dir "path/to/output"
+```
+
+3. 数据合并
+```bash
+python src/data_process/merger_data.py \
+    --clinical_path "path/to/clinical_data" \
+    --snparray_path "path/to/snparray_data" \
+    --output_dir "path/to/output" \
+    --output_name "merge_result"
+```
+
+### 3. 数据库操作
+
+1. 创建表
+```bash
+python src/sql_data/clinical_sql.py \
+    --csv_path "path/to/data.csv" \
+    --table_name "table_name" \
+    --if_exists "replace"
+```
+
+2. 数据导入
+```bash
+python src/sql_data/pymysql.py
+```
+
+## 注意事项
+
+1. 数据格式要求
+   - SNP数据：PLINK格式
+   - 实验数据：Excel或CSV格式
+   - 临床数据：CSV格式
+
+2. 数据清洗规则
+   - 同一病人可能存在多个周期
+   - 使用"姓名-PGD编号-年份-遗传材料接收者"作为唯一标识
+
+3. 异常处理
+   - 详细的错误日志记录
+   - 异常数据标记和处理
+
+## 开发说明
+
+1. 代码规范
+   - 遵循PEP 8规范
+   - 完整的文档字符串
+   - 类型提示支持
+
+2. 测试
+   - 单元测试覆盖
+   - 集成测试验证
+
+## 贡献指南
+
+1. Fork项目
+2. 创建特性分支
+3. 提交变更
+4. 推送到分支
+5. 创建Pull Request
+
+## 许可证
+
+MIT License
+
+## 联系方式
+
+如有问题或建议，请提交Issue或联系项目维护者。
