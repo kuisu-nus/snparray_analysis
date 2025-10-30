@@ -166,6 +166,7 @@ class PhenotypeDataProcessor:
                     k: v for k, v in self.config.column_rename.items() 
                     if k in df_merged.columns
                 }
+                logging.info(f"df merge head: \n{df_merged.head()}")
                 if actual_rename:
                     df_merged.rename(columns=actual_rename, inplace=True)
                     logger.info(f"Renamed columns: {actual_rename}")
@@ -381,11 +382,11 @@ def create_config_from_args(args) -> Configuration:
 def get_default_config() -> Configuration:
     """Get default configuration for direct execution"""
     return Configuration(
-        ped_file=r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS\PLINK_281025_0434\PGT_TLS.ped",
-        phenotype_file=r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS\PLINK_281025_0434\PGT_TLS.phenotype",
+        ped_file=r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS_ALL\PLINK_291025_0948\PGT_TLS_ALL.ped",
+        phenotype_file=r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS_ALL\PLINK_291025_0948\PGT_TLS_ALL.phenotype",
         full_phenotype_file=r"D:\03.projects\AI.PGT\snparray_analysis\work_dir\clinical_snparray_phenotype.csv",
-        output_ped=r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS\PLINK_281025_0434\PGT_TLS.refactor.ped",
-        output_phenotype=r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS\PLINK_281025_0434\PGT_TLS.refactor.phenotype",
+        output_ped=r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS_ALL\PLINK_291025_0948\PGT_TLS_ALL.refactor.ped",
+        output_phenotype=r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS_ALL\PLINK_291025_0948\PGT_TLS_ALL.refactor.phenotype",
         output_full_phenotype=r"D:\03.projects\AI.PGT\snparray_analysis\work_dir\clinical_snparray_phenotype.refactor.csv",
         column_rename={
             "男方姓名": "PID",
@@ -402,6 +403,7 @@ def main():
         if len(sys.argv) > 1:
             args = parse_arguments()
             config = create_config_from_args(args)
+            logging.info(f"configs: \n{config}")
         else:
             # Use default configuration
             config = get_default_config()

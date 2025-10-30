@@ -7,8 +7,8 @@ set -e  # Exit on any error
 
 # Default parameters
 DATA_DIR=${1:-.}
-INPUT=${2:-PGT_TLS.refactor}
-OUTPUT=${3:-PGT_TLS.refactor}
+INPUT=${2:-PGT_TLS_ALL.refactor}
+OUTPUT=${3:-PGT_TLS_ALL.refactor}
 MAF=${4:-0.05}
 
 cd $DATA_DIR
