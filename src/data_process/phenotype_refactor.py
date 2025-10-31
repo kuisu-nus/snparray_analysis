@@ -199,6 +199,10 @@ class PhenotypeDataProcessor:
             if col not in df.columns and col in column_defaults:
                 df[col] = column_defaults[col]
                 logger.info(f"Added missing {col} column with default value: {column_defaults[col]}")
+
+        # 去除名字中的空格
+        df["PID"] = df["PID"].str.replace(r"\s+", "_", regex=True)
+        df["MID"] = df["MID"].str.replace(r"\s+", "_", regex=True)
         
         # Convert phenotype values if needed
         if "PHENO" in df.columns:
@@ -223,7 +227,7 @@ class PhenotypeDataProcessor:
             logger.warning(f"Unrecognized PHENO values: {unique_values}. Please verify the mapping.")
         
         return df
-    
+        
     def _convert_chinese_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Convert Chinese characters to Pinyin in all columns"""
         chinese_columns = []
@@ -284,12 +288,18 @@ class PhenotypeRefactor:
             
             # Ensure output directory exists
             Path(self.config.output_ped).parent.mkdir(parents=True, exist_ok=True)
+
+            use_default_sex = False
+            if len(ped_phenotype_data["SEX"].unique())  == 1:
+                use_default_sex = True
             
             # Write refactored data
             with open(self.config.output_ped, 'w', encoding='utf-8') as f:
                 for line, sample_info in zip(lines, ped_phenotype_data.to_numpy()):
                     # Extract SNP data
-                    snp_data = "\t".join(line[:100].split()[6:]) + line[100:]
+                    snp_data = "\t".join(line[:100].split()[6:]) + "\t" + line[100:]
+                    if use_default_sex:
+                        sample_info[4] = line[:100].split()[4]
                     
                     # Create new line with updated sample info
                     sample_info_str = "\t".join(str(item) for item in sample_info)

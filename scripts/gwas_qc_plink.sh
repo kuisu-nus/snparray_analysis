@@ -2,7 +2,7 @@
 
 # GWAS QC Pipeline Script
 # Usage: ./gwas_qc_pipeline.sh [input_prefix] [output_prefix] [maf_threshold] [data_dir]
-# data_dir: D:/03.projects/AI.PGT/data/SNP_results/PGT_TLS/PLINK_281025_0434/1_QC2
+# data_dir: D:/03.projects/AI.PGT/data/SNP_results/PGT_TLS_ALL1/PLINK_311025_1032/1_QC
 set -e  # Exit on any error
 
 # Default parameters
@@ -21,19 +21,40 @@ echo "Data directory: $DATA_DIR"
 
 # Step 1: Missingness analysis
 echo "Step 1/6: Missingness analysis"
-plink --file $INPUT --impute-sex --recode --out ${INPUT}
-plink --file $INPUT --make-bed --out ${INPUT}
-plink --bfile $INPUT --missing
+awk '$2 ~ /^cnvi/ {print $2}' $INPUT.map > cnv_snps.txt
+plink --file $INPUT --exclude cnv_snps.txt --recode --out ${INPUT}_sex
+
+# # 替换XY为Y
+echo "XY Y" > chr_fix.txt
+plink --file ${INPUT}_sex --update-chr chr_fix.txt --make-bed --out ${INPUT}_sex
+
+# # 修复所有半缺失调用
+# echo "fix half missing calls"
+# awk '{
+#     for(i=7; i<=NF; i+=2) {
+#         if(($i == "0" && $(i+1) != "0") || ($i != "0" && $(i+1) == "0")) {
+#             $i = "0"
+#             $(i+1) = "0"
+#         }
+#     }
+#     print
+# }' ${INPUT}.ped > ${INPUT}_fixed.ped
+# awk '{a[NF]++} END{for(k in a) print k,a[k]}' ${INPUT}_fixed.ped | sort -n
+# cp ${INPUT}_fixed.ped ${INPUT}.ped
+
+plink --bfile ${INPUT}_sex --impute-sex --make-founders --make-bed --out ${INPUT}_sex1
+plink --bfile ${INPUT}_sex1  --missing
+
 # Rscript --no-save hist_miss.R
 
-plink --bfile $INPUT --geno 0.2 --make-bed --out ${INPUT}_step1
+plink --bfile ${INPUT}_sex1  --geno 0.2 --make-bed --out ${INPUT}_step1
 plink --bfile ${INPUT}_step1 --mind 0.2 --make-bed --out ${INPUT}_step2
 plink --bfile ${INPUT}_step2 --geno 0.02 --make-bed --out ${INPUT}_step3
 plink --bfile ${INPUT}_step3 --mind 0.02 --make-bed --out ${INPUT}_step4
 
 # Step 2: Sex discrepancy check
-echo "Step 2/6: Sex discrepancy check"
-plink --bfile ${INPUT}_step4 --check-sex
+# echo "Step 2/6: Sex discrepancy check"
+plink --bfile ${INPUT}_step4 --check-sex --make-founders
 # Rscript --no-save gender_check.R
 
 grep "PROBLEM" plink.sexcheck | awk '{print$1,$2}' > sex_discrepancy.txt
@@ -61,7 +82,7 @@ plink --bfile ${INPUT}_hwe_temp --hwe 1e-10 --hwe-all --make-bed --out ${INPUT}_
 # Step 5: Heterozygosity check
 echo "Step 5/6: Heterozygosity check"
 touch inversion.txt
-plink --bfile ${INPUT}_step8 --exclude inversion.txt --range --indep-pairwise 50 5 0.2 --out indepSNP
+plink --bfile ${INPUT}_step8 --exclude inversion.txt --range --indep-pairwise 50 5 0.2 --out indepSNP --make-founders
 plink --bfile ${INPUT}_step8 --extract indepSNP.prune.in --het --out R_check
 
 # Rscript --no-save check_heterozygosity_rate.R
@@ -79,7 +100,8 @@ plink --bfile ${INPUT}_step8 --remove het_fail_ind.txt --make-bed --out ${INPUT}
 
 # Step 6: Relatedness check
 echo "Step 6/6: Relatedness check"
-plink --bfile ${INPUT}_step9 --filter-founders --make-bed --out ${INPUT}_step10
+# plink --bfile ${INPUT}_step9 --filter-founders --make-bed --out ${INPUT}_step10
+plink --bfile ${INPUT}_step9 --make-founders --make-bed --out ${INPUT}_step10
 plink --bfile ${INPUT}_step10 --extract indepSNP.prune.in --genome --min 0.2 --out pihat_min0.2_in_founders
 plink --bfile ${INPUT}_step10 --missing
 
