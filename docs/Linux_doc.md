@@ -107,6 +107,12 @@ awk -F',' 'NR==1 {print "SNP,OR,P"} NR>1 && $9 < 0.05 {print $2 "," $7 "," $9}' 
 # `NR>1`: 匹配第2行及以后的数据行
 # `$9<0.05`: 条件判断，第9列<0.05
  # `{print $2 "," $7 "," $9}`：输出第2列(SNP)、第7列(OR)、第9列(P)，用逗号连接
+
+ # 对指定列进行排序
+ awk -F',' '
+NR==1 {print}
+NR>1 {print}
+' file.csv | sort -t',' -k9,9n > sorted_by_p.csv
 ```
 
 ## PLINK操作
