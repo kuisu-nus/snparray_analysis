@@ -63,6 +63,12 @@ docker run -it --rm \
     -v /home/sukui/03.projects/02.gene/Genos/:/workspace/code/Genos/ \
     zhanxiaoai/mega:v1 \
     /bin/bash
+
+# use GPU
+docker run -it --rm --gpus all \
+    -v /home/sukui/03.projects/02.gene/Genos/:/workspace/code/Genos/ \
+    zhanxiaoai/mega:v1 \
+    /bin/bash
 ```
 
 ### 操作容器
@@ -85,4 +91,31 @@ docker run -it --rm \
 awk '{count[NF]++} END{for(i in count) print i, count[i]}' filename | sort -n
 # 统计指定列的分布
 awk '{count[$5]++} END{for(i in count) print i, count[i]}' PGT_TLS_ALL1.refactor_step8.ped | sort -n
+```
+
+- 文件处理
+```bash
+# 只保留VCF文件的表头和数据行
+awk '/^#CHROM/ || !/^#/' input.vcf > output.vcf
+
+# 提取指定的列
+awk '{print $3}' input.vcf > snp_ids.txt
+
+awk -F',' 'NR==1 {print "SNP,OR,P"} NR>1 && $9 < 0.05 {print $2 "," $7 "," $9}' file.csv > significant.csv
+# `NR==1`: NR表示行号，这里匹配第一行
+# `{print "SNP,OR,P"}`: 输出新的表头"SNP, OR, P"
+# `NR>1`: 匹配第2行及以后的数据行
+# `$9<0.05`: 条件判断，第9列<0.05
+ # `{print $2 "," $7 "," $9}`：输出第2列(SNP)、第7列(OR)、第9列(P)，用逗号连接
+```
+
+## PLINK操作
+- 从vcf中提取指定的SNPs
+```bash
+# 基于snp_list.txt
+plink --vcf input.vcf --extract snplist.txt --recode vcf --out output
+# 基于position.txt
+plink --vcf input.vcf --extract range position.txt --recode vcf --out output
+
+
 ```

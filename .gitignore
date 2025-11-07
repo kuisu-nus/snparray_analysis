@@ -212,3 +212,4 @@ work_dir/
 *.csv
 *.xlsx
 *.json
+logs/

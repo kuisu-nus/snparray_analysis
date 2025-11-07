@@ -1,0 +1,157 @@
+"""
+1. 根据p value选择SNPs features
+2. 数据处理，one_hot编码, 标准化, 缺失值处理
+3. 训练模型
+4. 评估模型
+"""
+import pandas as pd
+import numpy as np
+import os
+import torch
+import logging
+
+from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score
+from sklearn.metrics import precision_score, recall_score, f1_score, matthews_corrcoef
+from xgboost import XGBClassifier
+
+
+from ..data_process import logger
+
+logging.basicConfig(level=logging.INFO)
+
+class SNPML:
+    def __init__(self, output_dir:str):
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+            logger.info(f"create output dir: {output_dir}")
+        self.output_dir = output_dir
+        
+        pass
+
+    def get_snp_features(self, logistic_file:str):
+        """根据p value选择SNPs features"""
+        assert os.path.exists(logistic_file), f"{logistic_file} not exists"
+        logistic_df = pd.read_csv(logistic_file, sep="\s+")
+        assert "P" in logistic_df.columns, f"{logistic_file} not contains P column"
+        # sort by p value
+        logistic_df = logistic_df.sort_values(by="P")
+        logistic_df = logistic_df[logistic_df["P"] < 0.05]
+        logger.info(f"select {len(logistic_df)} snp features\n{logistic_df.head()}")
+
+        # save into output_dir
+        logistic_df.to_csv(os.path.join(self.output_dir, "snp_features_sort.csv"), index=False)
+        return logistic_df
+    
+    def vcf_to_csv(self, vcf_file:str):
+        """将vcf的数据进行处理, 行代表样本，列代表SNP，且将缺失值填充为-1，00为0, 01为1， 11为2"""
+        
+        
+
+    def train_xgboost_classifier(X_train, y_train, X_test, random_state=42):
+        """训练XGBoost分类器"""
+        X_train_np = X_train.cpu().numpy() if torch.is_tensor(X_train) else X_train
+        y_train_np = y_train.cpu().numpy() if torch.is_tensor(y_train) else y_train
+        X_test_np = X_test.cpu().numpy() if torch.is_tensor(X_test) else X_test
+        
+        print("Training XGBoost classifier...")
+        print("XGboost parameters: n_estimators=100, learning_rate=0.1, max_depth=6, random_state={}".format(random_state))
+        xgb = XGBClassifier(
+            n_estimators=100,
+            random_state=random_state,
+            # use_label_encoder=False, 
+            eval_metric='mlogloss',
+            learning_rate=0.1,
+            max_depth=6        
+        )
+        xgb.fit(X_train_np, y_train_np)
+        print("XGBoost training completed")
+        
+        probs = xgb.predict_proba(X_test_np)
+        preds = xgb.predict(X_test_np)
+        return preds, probs
+
+    def predict(self):
+        pass
+
+    def evaluate(self, X_train, y_train, X_test, y_test):
+        # 因为Xgboost不使用验证集，因此仅使用原始训练集和测试集
+        print(f"\n[INFO] Since XGboost does not use validation set, using train and test sets without validation set.")
+        print(f"Train set size: {len(X_train)}")
+        print(f"Test set size: {len(X_test)}")
+
+        # 使用训练集训练，在处理后的测试集上评估
+        y_pred, y_probs = self.train_xgboost_classifier(
+                X_train, y_train, X_test,
+                random_state=42
+            )
+        y_true = y_test.numpy()
+
+
+        # 计算评估指标
+        acc = accuracy_score(y_true, y_pred)
+        precision = precision_score(y_true, y_pred, average='macro', zero_division=0)
+        recall = recall_score(y_true, y_pred, average='macro', zero_division=0)
+        f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
+
+        try:
+            mcc = matthews_corrcoef(y_true, y_pred)
+        except:
+            mcc = 0.0
+
+        try:
+            if y_probs.shape[1] == 2:
+                auc = roc_auc_score(y_true, y_probs[:, 1])
+                auprc = average_precision_score(y_true, y_probs[:, 1])
+            else:
+                auc = roc_auc_score(y_true, y_probs, multi_class='ovr', average='macro')
+                auprc = average_precision_score(y_true, y_probs, average='macro')
+        except Exception as e:
+            print(f"Error calculating AUC/AUPRC: {e}")
+            auc = 0.0
+            auprc = 0.0
+
+        # 打印每个类别的正确率
+        print(f"\n[INFO] Per-class accuracy:")
+        for class_idx in range(4):
+            class_mask = (y_true == class_idx)
+            if np.sum(class_mask) > 0:
+                class_correct = np.sum((y_pred[class_mask] == class_idx))
+                class_accuracy = class_correct / np.sum(class_mask)
+                print(f"  Class {class_idx}: {class_accuracy:.4f} ({class_correct}/{np.sum(class_mask)})")
+            else:
+                print(f"  Class {class_idx}: No samples in test set")
+
+        # 打印错误预测分布
+        print(f"\n[INFO] Error prediction distribution:")
+        for true_class in range(4):
+            true_class_mask = (y_true == true_class)
+            true_class_indices = np.where(true_class_mask)[0]
+
+            if len(true_class_indices) > 0:
+                preds_for_true_class = y_pred[true_class_mask]
+                wrong_pred_mask = (preds_for_true_class != true_class)
+                wrong_preds = preds_for_true_class[wrong_pred_mask]
+
+                if len(wrong_preds) > 0:
+                    error_counts = np.bincount(wrong_preds, minlength=4)
+                    total_errors = len(wrong_preds)
+                    print(f"  For true class {true_class} (errors: {total_errors}/{len(true_class_indices)}):")
+                    for pred_class in range(4):
+                        if pred_class != true_class and error_counts[pred_class] > 0:
+                            percentage = (error_counts[pred_class] / total_errors) * 100
+                            print(f"    → Predicted as class {pred_class}: {error_counts[pred_class]} ({percentage:.1f}%)")
+                else:
+                    print(f"  For true class {true_class}: No prediction errors")
+            else:
+                print(f"  For true class {true_class}: No samples in test set")
+
+        return acc, auc, auprc, f1, mcc, precision, recall
+
+
+if __name__ == "__main__":
+    logistic_file = r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS_ALL1\PLINK_311025_1032\1_QC\logistic_results.assoc_2.logistic"
+    output_dir = r"D:\03.projects\AI.PGT\snparray_analysis\work_dir\snp_ml"
+
+    snpml = SNPML(output_dir)
+    snpml.get_snp_features(logistic_file)
+    pass
