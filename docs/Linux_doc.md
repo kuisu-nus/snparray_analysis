@@ -124,4 +124,6 @@ plink --vcf input.vcf --extract snplist.txt --recode vcf --out output
 plink --vcf input.vcf --extract range position.txt --recode vcf --out output
 
 
+# 基于bcftools处理vcf
+bcftools view output.vcf.gz -O -v -o output.vcf
 ```

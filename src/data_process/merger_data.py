@@ -68,7 +68,7 @@ class MergeData:
         df_data.to_csv(os.path.join(output_dir, output_file+".csv"), index=False)
 
     def run(self):
-        df_clinical = self.load_data(self.clinical_path, header=1)
+        df_clinical = self.load_data(self.clinical_path, header=0)
         df_snparray = self.load_data(self.snparray_path, header=0)
         df_merge = self.merge_data(df_clinical, df_snparray)
         self.save_data(df_merge, self.output_dir, self.output_file)
@@ -76,13 +76,13 @@ class MergeData:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--clinical_path', type=str, 
-                        default=r'D:\03.projects\AI.PGT\snparray_analysis\data\clinical_data_pgt.csv')
+                        default=r'D:\03.projects\AI.PGT\snparray_analysis\data\clinical_transfer_data.csv')
     parser.add_argument('--snparray_path', type=str, 
                         default=r'D:\03.projects\AI.PGT\snparray_analysis\data\multi_芯片实验记录表_all_persons.csv')
     parser.add_argument('--output_dir', type=str, 
                         default=r'D:\03.projects\AI.PGT\snparray_analysis\work_dir')
     parser.add_argument('--output_name', type=str, 
-                        default=r'merge_clinical_snparray')
+                        default=r'merge_clinical_transfer_snparray')
     args = parser.parse_args()
 
     setup_logging()

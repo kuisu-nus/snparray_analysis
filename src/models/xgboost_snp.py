@@ -139,41 +139,6 @@ class SNPML:
             auc = 0.0
             auprc = 0.0
 
-        # 打印每个类别的正确率
-        print(f"\n[INFO] Per-class accuracy:")
-        for class_idx in range(2):
-            class_mask = (y_true == class_idx)
-            if np.sum(class_mask) > 0:
-                class_correct = np.sum((y_pred[class_mask] == class_idx))
-                class_accuracy = class_correct / np.sum(class_mask)
-                print(f"  Class {class_idx}: {class_accuracy:.4f} ({class_correct}/{np.sum(class_mask)})")
-            else:
-                print(f"  Class {class_idx}: No samples in test set")
-
-        # 打印错误预测分布
-        print(f"\n[INFO] Error prediction distribution:")
-        for true_class in range(2):
-            true_class_mask = (y_true == true_class)
-            true_class_indices = np.where(true_class_mask)[0]
-
-            if len(true_class_indices) > 0:
-                preds_for_true_class = y_pred[true_class_mask]
-                wrong_pred_mask = (preds_for_true_class != true_class)
-                wrong_preds = preds_for_true_class[wrong_pred_mask]
-
-                if len(wrong_preds) > 0:
-                    error_counts = np.bincount(wrong_preds, minlength=4)
-                    total_errors = len(wrong_preds)
-                    print(f"  For true class {true_class} (errors: {total_errors}/{len(true_class_indices)}):")
-                    for pred_class in range(4):
-                        if pred_class != true_class and error_counts[pred_class] > 0:
-                            percentage = (error_counts[pred_class] / total_errors) * 100
-                            print(f"    → Predicted as class {pred_class}: {error_counts[pred_class]} ({percentage:.1f}%)")
-                else:
-                    print(f"  For true class {true_class}: No prediction errors")
-            else:
-                print(f"  For true class {true_class}: No samples in test set")
-
         logger.info(f"acc: {acc:.4f}, auc: {auc:.4f}, auprc: {auprc:.4f}, f1: {f1:.4f}, mcc: {mcc:.4f}, precision: {precision:.4f}, recall: {recall:.4f}")
         return acc, auc, auprc, f1, mcc, precision, recall
 
@@ -181,7 +146,7 @@ class SNPML:
 if __name__ == "__main__":
     logistic_file = r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS_ALL1\PLINK_311025_1032\1_QC\logistic_results.assoc_2.logistic"
     output_dir = r"D:\03.projects\AI.PGT\snparray_analysis\work_dir\snp_ml"
-    feature_fiel = r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS_ALL1\PLINK_311025_1032\4_vcf\PGT_TLS_ALL1.feature.table"
+    feature_fiel = r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS_ALL1\PLINK_311025_1032\4_vcf\PGT_TLS_ALL1.feature500.table"
     phenotype_file = r"D:\03.projects\AI.PGT\data\SNP_results\PGT_TLS_ALL1\PLINK_311025_1032\4_vcf\PGT_TLS_ALL1.refactor.phenotype"
 
     snpml = SNPML(output_dir)

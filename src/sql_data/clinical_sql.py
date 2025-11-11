@@ -55,8 +55,8 @@ def parse_arguments() -> argparse.Namespace:
     )
 
 
-CSV_FILE_PATH = r"D:\03.projects\AI.PGT\snparray_analysis\data\clinical_data_pgt.csv"
-TABLE_NAME = "clinical_data"
+# CSV_FILE_PATH = r"D:\03.projects\AI.PGT\snparray_analysis\data\clinical_data_pgt.csv"
+# TABLE_NAME = "clinical_data"
 
 # --- Logger Setup ---
 
