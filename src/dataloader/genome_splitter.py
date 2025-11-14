@@ -6,8 +6,13 @@ import numpy as np
 import pandas as pd
 from dataclasses import dataclass
 import os
+import logging 
+import time
 
 from vcf_dataset import KGDataLoader
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 proxy_vars = [
     'http_proxy', 'https_proxy', 'ftp_proxy',
@@ -85,7 +90,6 @@ class KGGenomeSplitter:
         if not positions:
             return []
         
-        max_pos = max(positions)
         windows = []
         
         # Generate sliding windows
@@ -218,30 +222,7 @@ class KGWindowDataLoader(KGDataLoader):
         
         self.windows = windows
         self.window_index = window_index if window_index is not None else list(range(len(windows)))
-        
-        # Precompute window to variant mapping for faster access
-    #     self._setup_window_mapping()
-    
-    # def _setup_window_mapping(self) -> None:
-    #     """Precompute mapping from windows to variant indices."""
-    #     print("Setting up window-variant mapping...")
-    #     self.window_variants = {}
-        
-    #     for idx in self.window_index:
-    #         window = self.windows[idx]
-            
-    #         # Filter variants in this window
-    #         window_variants = self.mt.filter_rows(
-    #             (self.mt.locus.contig == str(window.chromosome)) &
-    #             (self.mt.locus.position >= window.snp_start) &
-    #             (self.mt.locus.position <= window.snp_end)
-    #         )
-            
-    #         # Get variant indices
-    #         variant_indices = window_variants.rows().select().collect()
-    #         self.window_variants[idx] = [i for i, _ in enumerate(variant_indices)]
-        
-    #     print(f"Mapped {len(self.window_variants)} windows to variants")
+
     @staticmethod
     def encode_genotype(gt_call, missing_value=-1):
         """编码单个基因型"""
@@ -271,15 +252,20 @@ class KGWindowDataLoader(KGDataLoader):
         # variant_indices = self.window_variants[window_idx]
         
         # Get sample and filter to window
+        sample_q_stime = time.time()
         sample_mt = self.mt.filter_cols(self.mt.s == window.human_id)
+        sample_q_etiem = time.time()
+        print(f'sample query time: {sample_q_etiem - sample_q_stime}')
         window_mt = sample_mt.filter_rows(
             (sample_mt.locus.contig == str(window.chromosome)) &
             (sample_mt.locus.position >= window.snp_start) &
             (sample_mt.locus.position <= window.snp_end)
         )
-        
+        sample_q_etime2 = time.time()
+        print(f"snp quer time: {sample_q_etime2-sample_q_etiem}")
         # Convert genotypes to tensor
         genotypes = window_mt.GT.collect()
+        print(f"collect time: {time.time() - sample_q_etime2}")
         genotype_tensor = torch.tensor([self.encode_genotype(gt, self.missing_value)
                                         for gt in genotypes], dtype=torch.int32)
         
@@ -314,17 +300,18 @@ class KGWindowDataLoader(KGDataLoader):
 def test_genome_splitter():
     """Test genome splitter functionality."""
     print("Testing KGGenomeSplitter...")
+    from tqdm import tqdm
     
     # Create mock data
-    test_path = "/home/sukui/03.projects/01.pgt/snparray_analysis/work_dir/hail_data/1kg.mt"
-    
+    # test_path = "/home/sukui/03.projects/01.pgt/snparray_analysis/work_dir/hail_data/1kg.mt"
+    test_path = "/home/sukui/01.data/03.raw_data/1kg/ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.mt"
     try:
         # Test splitter initialization
-        splitter = KGGenomeSplitter(test_path, window_size=100, slide_step=0.1)
+        splitter = KGGenomeSplitter(test_path, window_size=1_000_000, slide_step=0.1)
         print("✓ Splitter initialized successfully")
         
         # Test chromosome window generation
-        windows = splitter.get_chromosome_windows('1', min_variants=5)
+        windows = splitter.get_chromosome_windows('22', min_variants=5)
         assert len(windows) > 0, "Should generate windows"
         print(f"✓ Generated {len(windows)} windows for chr1")
         
@@ -350,6 +337,8 @@ def test_genome_splitter():
         
         # Test data loading
         genotypes, window_info = window_loader[0]
+        for i, data in tqdm(enumerate(window_loader)):
+            print(f"{i} gt: {data[0].shape}")
         assert isinstance(genotypes, torch.Tensor), "Should return tensor"
         assert isinstance(window_info, dict), "Should return window info dict"
         assert 'human_id' in window_info, "Window info should contain human_id"
