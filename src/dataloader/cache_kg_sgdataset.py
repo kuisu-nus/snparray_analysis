@@ -1,4 +1,6 @@
+from contextlib import contextmanager
 from dataclasses import dataclass
+import threading
 import torch
 from torch.utils.data import Dataset, DataLoader
 from collections import OrderedDict, defaultdict
@@ -150,7 +152,7 @@ class CachedKGSGDataset(Dataset):
                  data_path: str,
                  windows: List[ChromosomeWindow],
                  missing_value: int = -1,
-                 cache_size: int = 3,
+                 cache_size: int = 8,
                  is_zarr: bool = True):
         """
         Initialize cached dataset for genotype data.
@@ -172,8 +174,9 @@ class CachedKGSGDataset(Dataset):
         self.ds = self._load_dataset(data_path, is_zarr)
         logger.info(f"Dataset loaded with {self.ds.samples.size} samples and {self.ds.variants.size} variants")
         
-        # Cache for loaded samples
+        # 缓存和锁
         self.sample_cache = OrderedDict()
+        self.cache_lock = threading.Lock()  # 添加线程锁
     
     def _load_dataset(self, data_path: str, is_zarr: bool = True) -> xr.Dataset:
         """Load genotype dataset from VCF or Zarr format using sgkit."""
@@ -184,12 +187,6 @@ class CachedKGSGDataset(Dataset):
             # Load from Zarr format (optimized for sgkit)
             ds = sg.load_dataset(data_path)
         else:
-            # Convert VCF to Zarr and load (one-time conversion)
-            zarr_path = data_path.replace('.vcf', '.zarr').replace('.gz', '')
-            # if not os.path.exists(zarr_path):
-            #     logger.info(f"Converting VCF to Zarr format: {data_path} -> {zarr_path}")
-            #     vcf_to_zarr(data_path, zarr_path, chunk_length=10000, chunk_width=100)
-            # ds = sg.load_dataset(zarr_path)
             raise FileExistsError(f"not support vcf format:{data_path}")
         start_time = time.time()
         # ds = self.convert_gt(ds)
@@ -207,32 +204,39 @@ class CachedKGSGDataset(Dataset):
             Dictionary with sample's genotype data organized by chromosome
         """
         # Check cache first (with LRU update)
-        if human_id in self.sample_cache:
-            gt_data = self.sample_cache.pop(human_id)
-            self.sample_cache[human_id] = gt_data
-            return gt_data
+        with self.cache_lock:
+            if human_id in self.sample_cache:
+                gt_data = self.sample_cache.pop(human_id)
+                self.sample_cache[human_id] = gt_data
+                return gt_data
         
         logger.info(f"Loading data for sample: {human_id}")
-        
-        # Find sample index
-        sample_ids = self.ds['sample_id'].values
-        sample_idx = np.where(sample_ids == human_id)[0]
-        if len(sample_idx) == 0:
-            raise ValueError(f"Sample {human_id} not found")
-        sample_idx = sample_idx[0]
-        genotype_data = self.ds["call_genotype"].values[:, sample_idx, :]
-        gt_pos = self.ds["variant_position"].values
-        chrom_indices = self.ds['variant_contig'].values
-
-        alt_count = np.sum(genotype_data, axis=-1)
-        missing_mask = np.any(genotype_data < 0, axis=-1)
-        alt_count[missing_mask] = -1
-
-        gt_data = GTData.from_numpy(gt=alt_count, chr=chrom_indices, pos=gt_pos)
-        
         # Cache the data with LRU management
-        self._add_to_cache(human_id, gt_data)
+        with self.cache_lock:
+            # Find sample index
+            sample_ids = self.ds['sample_id'].values
+            sample_idx = np.where(sample_ids == human_id)[0]
+            if len(sample_idx) == 0:
+                raise ValueError(f"Sample {human_id} not found")
+            sample_idx = sample_idx[0]
+            genotype_data = self.ds["call_genotype"].values[:, sample_idx, :]
+            gt_pos = self.ds["variant_position"].values
+            chrom_indices = self.ds['variant_contig'].values
+
+            alt_count = np.sum(genotype_data, axis=-1)
+            missing_mask = np.any(genotype_data < 0, axis=-1)
+            alt_count[missing_mask] = -1
+
+            gt_data = GTData.from_numpy(gt=alt_count, chr=chrom_indices, pos=gt_pos)
+        
+            self._add_to_cache(human_id, gt_data)
         return gt_data
+    
+    @contextmanager
+    def _cache_access(self):
+        """缓存访问上下文管理器"""
+        with self.cache_lock:
+            yield
     
     def _add_to_cache(self, sample_id: str, data: GTData) -> None:
         """Add sample data to cache with LRU eviction policy."""
@@ -245,7 +249,7 @@ class CachedKGSGDataset(Dataset):
         self.sample_cache[sample_id] = data
         logger.info(f"Cached {sample_id}, cache size: {len(self.sample_cache)}")
         print(f"Cached {sample_id}, cache size: {len(self.sample_cache)}")
-        
+
     def __len__(self) -> int:
         """Return number of windows in the dataset."""
         return len(self.windows)
