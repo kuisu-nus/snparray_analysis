@@ -208,9 +208,9 @@ class CachedKGSGDataset(Dataset):
         """
         # Check cache first (with LRU update)
         if human_id in self.sample_cache:
-            data = self.sample_cache.pop(human_id)
-            self.sample_cache[human_id] = data
-            return data
+            gt_data = self.sample_cache.pop(human_id)
+            self.sample_cache[human_id] = gt_data
+            return gt_data
         
         logger.info(f"Loading data for sample: {human_id}")
         
@@ -239,11 +239,13 @@ class CachedKGSGDataset(Dataset):
         if len(self.sample_cache) >= self.cache_size:
             oldest_key = next(iter(self.sample_cache))
             del self.sample_cache[oldest_key]
-            logger.debug(f"Evicted {oldest_key} from cache")
+            logger.info(f"Evicted {oldest_key} from cache")
+            print(f"Evicted {oldest_key} from cache")
         
         self.sample_cache[sample_id] = data
-        logger.debug(f"Cached {sample_id}, cache size: {len(self.sample_cache)}")
-    
+        logger.info(f"Cached {sample_id}, cache size: {len(self.sample_cache)}")
+        print(f"Cached {sample_id}, cache size: {len(self.sample_cache)}")
+        
     def __len__(self) -> int:
         """Return number of windows in the dataset."""
         return len(self.windows)
