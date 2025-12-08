@@ -26,6 +26,7 @@ for var in proxy_vars:
 @dataclass
 class ChromosomeWindow:
     """Data class to store chromosome window information."""
+    vcz_path: str
     human_id: str
     chromosome: str
     snp_start: int
@@ -107,6 +108,7 @@ class KGGenomeSplitter:
             samples = chr_mt.aggregate_cols(hl.agg.collect(chr_mt.s))
             for sample in samples:
                 window = ChromosomeWindow(
+                    vcz_path=self.mt_path
                     human_id=sample,
                     chromosome=chromosome,
                     snp_start=start_pos,

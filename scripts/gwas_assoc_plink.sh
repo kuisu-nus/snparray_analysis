@@ -27,7 +27,7 @@ plink --bfile $INPUT --assoc --out assoc_results
 
 # Step 2: Logistic regression with covariates
 echo "Step 2/6: Logistic regression with covariates"
-plink --bfile $INPUT --covar $COVAR --logistic --hide-covar --out logistic_results
+plink --bfile $INPUT --covar $COVAR --logistic hide-covar --out logistic_results
 
 # Remove NA values from logistic results
 awk '!/NA/' logistic_results.assoc.logistic > logistic_results.assoc_2.logistic
